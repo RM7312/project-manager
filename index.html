@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>チーム用タスク管理ツール (v8 - メール認証版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
+        .kanban-column { min-height: 400px; }
+        .task-card { cursor: grab; transition: all 0.3s ease-in-out; }
+        .task-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+        .task-card.is-hiding { opacity: 0; transform: scale(0.95); }
+        .gantt-chart-grid { display: grid; grid-template-columns: 200px repeat(60, 35px); overflow-x: auto; }
+        .gantt-bar { height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; overflow: hidden; white-space: nowrap; padding: 0 4px; }
+        .is-loading::after { content: ''; position: absolute; left: calc(50% - 0.75em); top: calc(50% - 0.75em); width: 1.5em; height: 1.5em; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .tab-active { background-color: white; border-color: #e2e8f0; border-bottom-color: white !important; color: #0f172a; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); transform: translateY(1px); }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <!-- 認証画面 -->
+    <div id="auth-container" class="min-h-screen flex items-center justify-center bg-slate-100">
+        <div class="w-full max-w-md bg-white rounded-lg shadow-md p-8">
+            <h2 id="auth-title" class="text-2xl font-bold text-center text-slate-800 mb-6">ログイン</h2>
+            <form id="auth-form">
+                <div class="mb-4">
+                    <label for="email" class="block text-sm font-medium text-slate-700">メールアドレス</label>
+                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-slate-700">パスワード</label>
+                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <p id="auth-error" class="text-sm text-red-600 mb-4 text-center hidden"></p>
+                <div>
+                    <button type="submit" id="auth-submit-btn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">ログイン</button>
+                </div>
+            </form>
+            <p class="mt-4 text-center text-sm text-slate-600">
+                <span id="auth-toggle-text">アカウントをお持ちでないですか？</span>
+                <button id="auth-toggle-btn" class="font-medium text-blue-600 hover:text-blue-500">サインアップ</button>
+            </p>
+        </div>
+    </div>
+
+    <!-- メインアプリコンテナ (最初は非表示) -->
+    <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
+        <!-- (ヘッダー、タブ、コンテンツエリアなどの構造は変更なし) -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">チームタスク管理</h1>
+                <p id="user-email" class="text-slate-500 mt-1"></p>
+            </div>
+            <div class="flex items-center space-x-4 mt-4 md:mt-0">
+                <button id="logout-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors flex items-center">ログアウト</button>
+                <div class="relative" id="filter-container">
+                    <button id="filter-btn" class="bg-white text-slate-700 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-slate-50 border border-slate-300 transition-colors flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                        担当者フィルター
+                    </button>
+                    <div id="filter-dropdown" class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl z-20 hidden p-4 border border-slate-200">
+                        <p class="font-semibold text-sm mb-2">表示する担当者を選択</p>
+                        <div id="filter-options" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                        <div class="mt-4 pt-2 border-t border-slate-200"><button id="clear-filter-btn" class="text-sm text-blue-600 hover:underline">選択をクリア</button></div>
+                    </div>
+                </div>
+                <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    新しいタスク
+                </button>
+            </div>
+        </header>
+        <div class="flex items-center space-x-4 mb-4">
+            <label class="flex items-center text-sm text-slate-600 cursor-pointer"><input type="checkbox" id="show-completed-checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="ml-2">完了済みのタスクを表示</span></label>
+        </div>
+        <div class="border-b border-slate-200">
+            <nav class="-mb-px flex space-x-2" aria-label="Tabs">
+                <button data-view="board" class="view-tab tab-active whitespace-nowrap py-3 px-6 border rounded-t-lg font-medium text-sm">ボードビュー</button>
+                <button data-view="list" class="view-tab whitespace-nowrap py-3 px-6 border border-b-0 border-transparent rounded-t-lg font-medium text-sm text-slate-500 hover:text-slate-700">タスク一覧</button>
+                <button data-view="gantt" class="view-tab whitespace-nowrap py-3 px-6 border border-b-0 border-transparent rounded-t-lg font-medium text-sm text-slate-500 hover:text-slate-700">ガントチャート</button>
+            </nav>
+        </div>
+        <main id="content-area" class="mt-6"></main>
+    </div>
+
+    <!-- (HTMLテンプレート、モーダルは変更なし) -->
+    <template id="board-view-template"><div class="view-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div></template>
+    <template id="list-view-template"><div class="view-content bg-white rounded-lg shadow overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">タスク名</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">担当者</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ステータス</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">期間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">優先度</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Today</th><th scope="col" class="relative px-6 py-3"><span class="sr-only">操作</span></th></tr></thead><tbody class="bg-white divide-y divide-slate-200"></tbody></table></div></template>
+    <template id="gantt-view-template"><div class="view-content bg-white p-4 rounded-lg shadow overflow-x-auto"></div></template>
+    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4"><div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-lg max-h-full overflow-y-auto"><h2 id="modalTitle" class="text-2xl font-bold mb-6">新しいタスク</h2><form id="taskForm"><input type="hidden" id="taskId"><div class="mb-4"><label for="taskName" class="block text-sm font-medium text-slate-700">タスク名</label><input type="text" id="taskName" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div><div class="mb-4"><label for="assignee" class="block text-sm font-medium text-slate-700">担当者 (複数名はカンマ区切り)</label><input type="text" id="assignee" placeholder="田中, 鈴木" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div><label for="priority" class="block text-sm font-medium text-slate-700">優先度</label><select id="priority" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option value=""></option></select></div><div><label for="status" class="block text-sm font-medium text-slate-700">ステータス</label><select id="status" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div><label for="startDate" class="block text-sm font-medium text-slate-700">開始日</label><input type="date" id="startDate" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div><div><label for="endDate" class="block text-sm font-medium text-slate-700">終了日</label><input type="date" id="endDate" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div></div><div class="flex items-center mb-4"><input id="isToday" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="isToday" class="ml-2 block text-sm text-gray-900">ボードビューに表示 (Today)</label></div><div id="auditInfo" class="text-xs text-slate-400 bg-slate-50 p-2 rounded-md mb-6 border border-slate-200 hidden"></div><div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50">キャンセル</button><button type="submit" id="submitBtn" class="bg-blue-600 text-white py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium hover:bg-blue-700">保存</button></div></form></div></div>
+    <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4"><div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm"><h3 id="confirmTitle" class="text-lg font-medium leading-6 text-gray-900">タスクの削除</h3><div class="mt-2"><p id="confirmMessage" class="text-sm text-gray-500">このタスクを本当に削除しますか？この操作は元に戻せません。</p></div><div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense"><button id="confirmOkBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700">削除</button><button id="confirmCancelBtn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0">キャンセル</button></div></div></div>
+
+    <!-- Firebase SDKの読み込み -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ▼▼▼ あなた専用のFirebaseプロジェクトの設定をここに貼り付けます ▼▼▼
+        const firebaseConfig = {
+            apiKey: "AIzaSyCf9tCvyjeTiYuCI3H7rQU822jqfBwX-jE",
+            authDomain: "team-task-manager-7ecd4.firebaseapp.com",
+            projectId: "team-task-manager-7ecd4",
+            storageBucket: "team-task-manager-7ecd4.appspot.com",
+            messagingSenderId: "6167108322",
+            appId: "1:6167108322:web:5f4ab4929bc560e2471cbb"
+        };
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+        // --- グローバル変数 & 定数 ---
+        let auth, tasksCollectionRef;
+        let allTasks = [], filteredTasks = [], selectedAssignees = [];
+        let currentView = 'board', showCompleted = false, justCompletedTaskId = null;
+        let isLoginMode = true;
+
+        const statuses = ['未着手', '進行中', '保留', '完了'];
+        const priorities = ['緊急', '高', '定時まで', '時間あれば', '研修・その他'];
+        const priorityColors = { '緊急': 'bg-red-500 text-white', '高': 'bg-red-200 text-red-800', '定時まで': 'bg-yellow-200 text-yellow-800', '時間あれば': 'bg-green-100 text-green-800', '研修・その他': 'bg-slate-100 text-slate-800', '': 'bg-transparent' };
+        const statusColors = { '未着手': 'bg-slate-200 text-slate-800', '進行中': 'bg-blue-200 text-blue-800', '保留': 'bg-orange-200 text-orange-800', '完了': 'bg-green-200 text-green-800' };
+
+        // --- 初期化処理 ---
+        function displayAppError(message) { document.getElementById('auth-container').innerHTML = `<div class="p-8 text-center bg-red-50 rounded-lg border border-red-200"><h3 class="text-lg font-semibold text-red-800">アプリケーションエラー</h3><p class="mt-2 text-red-600">${message}</p><p class="mt-4 text-sm text-slate-500">HTMLファイル内の 'firebaseConfig' の設定を確認してください。</p></div>`; }
+        async function initialize() {
+            if (!firebaseConfig || !firebaseConfig.apiKey) { displayAppError("Firebaseの接続設定が見つかりません。"); return; }
+            try {
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+                auth = getAuth(app);
+                tasksCollectionRef = collection(db, "tasks");
+                setupModalOptions();
+                setupAuthListeners();
+                handleAuthState();
+            } catch (e) { console.error("Firebaseの初期化に失敗:", e); displayAppError(`Firebaseの初期化に失敗しました: ${e.message}`); }
+        }
+        function setupModalOptions() {
+            const prioritySelect = document.getElementById('priority');
+            prioritySelect.innerHTML = '<option value=""></option>' + priorities.map(p => `<option value="${p}">${p}</option>`).join('');
+            document.getElementById('status').innerHTML = statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+        }
+
+        // --- 認証関連 ---
+        function setupAuthListeners() {
+            document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
+            document.getElementById('auth-toggle-btn').addEventListener('click', toggleAuthMode);
+        }
+        function handleAuthState() {
+            onAuthStateChanged(auth, user => {
+                const authContainer = document.getElementById('auth-container');
+                const appContainer = document.getElementById('app-container');
+                if (user) {
+                    authContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+                    document.getElementById('user-email').textContent = `ログイン中: ${user.email}`;
+                    setupAppListeners();
+                    setupRealtimeListener();
+                } else {
+                    authContainer.classList.remove('hidden');
+                    appContainer.classList.add('hidden');
+                }
+            });
+        }
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('auth-error');
+            errorEl.classList.add('hidden');
+            try {
+                if (isLoginMode) {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                }
+            } catch (error) {
+                console.error("Authentication Error:", error);
+                errorEl.textContent = getAuthErrorMessage(error.code);
+                errorEl.classList.remove('hidden');
+            }
+        }
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').textContent = isLoginMode ? 'ログイン' : 'サインアップ';
+            document.getElementById('auth-submit-btn').textContent = isLoginMode ? 'ログイン' : 'サインアップ';
+            document.getElementById('auth-toggle-text').textContent = isLoginMode ? 'アカウントをお持ちでないですか？' : 'すでにアカウントをお持ちですか？';
+            document.getElementById('auth-toggle-btn').textContent = isLoginMode ? 'サインアップ' : 'ログイン';
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+        function getAuthErrorMessage(code) {
+            switch (code) {
+                case 'auth/wrong-password': return 'パスワードが間違っています。';
+                case 'auth/user-not-found': return 'このメールアドレスは登録されていません。';
+                case 'auth/email-already-in-use': return 'このメールアドレスは既に使用されています。';
+                case 'auth/weak-password': return 'パスワードは6文字以上で入力してください。';
+                default: return 'エラーが発生しました。入力内容を確認してください。';
+            }
+        }
+
+        // --- Firestoreリアルタイムリスナー ---
+        function setupRealtimeListener() {
+            if (!tasksCollectionRef) return;
+            onSnapshot(query(tasksCollectionRef), (snapshot) => {
+                allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate(), updatedAt: doc.data().updatedAt?.toDate() }));
+                allTasks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                updateFilterOptions();
+                applyFiltersAndRender();
+            }, (error) => { console.error("データ取得エラー:", error); displayAppError(`データの読み込みに失敗しました: ${error.message}`); });
+        }
+        
+        // (フィルター、ビュー描画、データ操作、モーダル関連の関数群は変更なし)
+        // --- フィルター & 表示制御 ---
+        function updateFilterOptions() {
+            const uniqueAssignees = [...new Set(allTasks.flatMap(t => (t.assignee || '').split(',')).map(a => a.trim()).filter(Boolean))].sort();
+            const optionsContainer = document.getElementById('filter-options');
+            optionsContainer.innerHTML = '';
+            uniqueAssignees.forEach(assignee => {
+                const isChecked = selectedAssignees.includes(assignee);
+                optionsContainer.innerHTML += `<label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" data-assignee="${assignee}" class="filter-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" ${isChecked ? 'checked' : ''}><span class="text-sm text-slate-700">${assignee}</span></label>`;
+            });
+            optionsContainer.querySelectorAll('.filter-checkbox').forEach(box => box.addEventListener('change', handleFilterChange));
+        }
+        function handleFilterChange(e) {
+            const assignee = e.target.dataset.assignee;
+            if (e.target.checked) { if (!selectedAssignees.includes(assignee)) selectedAssignees.push(assignee); } 
+            else { selectedAssignees = selectedAssignees.filter(a => a !== assignee); }
+            applyFiltersAndRender();
+        }
+        function applyFiltersAndRender() {
+            let tempTasks = [...allTasks];
+            if (!showCompleted) {
+                tempTasks = tempTasks.filter(task => task.status !== '完了' || task.id === justCompletedTaskId);
+            }
+            if (selectedAssignees.length > 0) {
+                tempTasks = tempTasks.filter(task => {
+                    const taskAssignees = (task.assignee || '').split(',').map(a => a.trim());
+                    return selectedAssignees.some(selected => taskAssignees.includes(selected));
+                });
+            }
+            filteredTasks = tempTasks;
+            renderCurrentView();
+        }
+        function renderCurrentView() {
+            const contentArea = document.getElementById('content-area');
+            contentArea.innerHTML = '';
+            contentArea.appendChild(document.getElementById(`${currentView}-view-template`).content.cloneNode(true));
+            if (currentView === 'board') renderBoardView();
+            else if (currentView === 'list') renderListView();
+            else if (currentView === 'gantt') renderGanttView();
+        }
+        function renderBoardView() {
+            const boardContainer = document.querySelector('#content-area .grid');
+            statuses.forEach(status => {
+                const column = document.createElement('div');
+                column.className = 'bg-slate-100 rounded-lg p-4 kanban-column';
+                column.dataset.status = status;
+                column.innerHTML = `<h3 class="font-bold text-lg mb-4 text-slate-700">${status}</h3><div class="space-y-4"></div>`;
+                const taskContainer = column.querySelector('.space-y-4');
+                filteredTasks.filter(t => t.status === status && t.isToday).forEach(task => {
+                    const card = document.createElement('div');
+                    card.id = `task-${task.id}`;
+                    card.className = 'task-card bg-white p-4 rounded-lg shadow';
+                    card.draggable = true;
+                    card.dataset.id = task.id;
+                    card.innerHTML = `<p class="font-semibold">${task.name}</p><p class="text-sm text-slate-500 mt-1">${task.assignee || '(担当者未設定)'}</p><div class="mt-2 flex justify-between items-center"><span class="text-xs font-medium px-2 py-1 rounded-full ${priorityColors[task.priority] || ''}">${task.priority}</span><span class="text-xs text-slate-400">作成日: ${task.createdAt?.toLocaleDateString('ja-JP') || '日付不明'}</span></div>`;
+                    card.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.currentTarget.dataset.id));
+                    card.addEventListener('click', () => openModal(task));
+                    taskContainer.appendChild(card);
+                });
+                column.addEventListener('dragover', e => e.preventDefault());
+                column.addEventListener('drop', handleDrop);
+                boardContainer.appendChild(column);
+            });
+        }
+        function renderListView() {
+            const listBody = document.querySelector('#content-area tbody');
+            filteredTasks.forEach(task => {
+                const row = listBody.insertRow();
+                row.className = 'hover:bg-slate-50';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-slate-900">${task.name}</div><div class="text-xs text-slate-500">作成日: ${task.createdAt?.toLocaleDateString('ja-JP') || '---'}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${task.assignee || '(担当者未設定)'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[task.status] || ''}">${task.status}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${task.startDate} ~ ${task.endDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColors[task.priority] || ''}">${task.priority}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap"><input type="checkbox" class="today-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" data-id="${task.id}" ${task.isToday ? 'checked' : ''}></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4"><button class="edit-btn text-blue-600 hover:text-blue-900" data-id="${task.id}">編集</button><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}">削除</button></td>`;
+            });
+            listBody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', e => openModal(allTasks.find(t => t.id === e.target.dataset.id))));
+            listBody.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', e => confirmDelete(e.target.dataset.id)));
+            listBody.querySelectorAll('.today-checkbox').forEach(b => b.addEventListener('change', e => updateTask(e.target.dataset.id, { isToday: e.target.checked })));
+        }
+        function renderGanttView() {
+            const container = document.querySelector('#content-area .view-content');
+            if (filteredTasks.length === 0) { container.innerHTML = '<p class="text-slate-500">表示するタスクがありません。</p>'; return; }
+            const dates = filteredTasks.flatMap(t => [new Date(t.startDate), new Date(t.endDate)]);
+            const chartStart = new Date(Math.min.apply(null, dates));
+            const chartEnd = new Date(Math.max.apply(null, dates));
+            chartStart.setDate(chartStart.getDate() - 2); chartEnd.setDate(chartEnd.getDate() + 2);
+            const days = [];
+            for (let d = new Date(chartStart); d <= chartEnd; d.setDate(d.getDate() + 1)) { days.push(new Date(d.setHours(0,0,0,0))); }
+            const grid = document.createElement('div');
+            grid.className = 'gantt-chart-grid';
+            grid.style.gridTemplateColumns = `200px repeat(${days.length}, 35px)`;
+            grid.innerHTML = `<div class="sticky left-0 bg-slate-100 p-2 font-semibold border-b border-r border-slate-200 z-10">タスク</div>`;
+            days.forEach(day => grid.innerHTML += `<div class="p-2 text-center text-xs border-b border-r border-slate-200 ${[0,6].includes(day.getDay()) ? 'bg-slate-50' : ''}">${day.getMonth()+1}/${day.getDate()}</div>`);
+            filteredTasks.forEach(task => {
+                grid.innerHTML += `<div class="sticky left-0 bg-white p-2 text-sm border-b border-r border-slate-200 truncate z-10" title="${task.name}">${task.name}</div>`;
+                const taskStart = new Date(new Date(task.startDate).setHours(0,0,0,0));
+                days.forEach(day => {
+                    const cell = document.createElement('div');
+                    cell.className = `border-b border-r border-slate-200 relative ${[0,6].includes(day.getDay()) ? 'bg-slate-50' : ''}`;
+                    if (day.getTime() === taskStart.getTime()) {
+                        const taskEnd = new Date(new Date(task.endDate).setHours(0,0,0,0));
+                        const diffDays = (taskEnd - taskStart) / (1000 * 60 * 60 * 24) + 1;
+                        const ganttStatusColors = {'完了': '#16a34a', '進行中': '#2563eb', '保留': '#f97316', '未着手': '#94a3b8'};
+                        cell.innerHTML = `<div class="gantt-bar absolute top-1/2 -translate-y-1/2 left-0" style="width: calc(${diffDays * 100}% - 4px); margin-left: 2px; background-color: ${ganttStatusColors[task.status] || '#64748b'}" title="${task.name} (${task.status})">${task.name}</div>`;
+                    }
+                    grid.appendChild(cell);
+                });
+            });
+            container.appendChild(grid);
+        }
+        function setupAppListeners() {
+            document.querySelectorAll('.view-tab').forEach(tab => tab.addEventListener('click', (e) => { currentView = e.target.dataset.view; document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('tab-active')); e.currentTarget.classList.add('tab-active'); applyFiltersAndRender(); }));
+            document.getElementById('filter-btn').addEventListener('click', () => document.getElementById('filter-dropdown').classList.toggle('hidden'));
+            document.getElementById('clear-filter-btn').addEventListener('click', () => { selectedAssignees = []; updateFilterOptions(); applyFiltersAndRender(); });
+            document.addEventListener('click', (e) => { if (!document.getElementById('filter-container').contains(e.target)) { document.getElementById('filter-dropdown').classList.add('hidden'); } });
+            document.getElementById('show-completed-checkbox').addEventListener('change', (e) => { showCompleted = e.target.checked; applyFiltersAndRender(); });
+            document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
+            document.getElementById('cancelBtn').addEventListener('click', closeModal);
+            document.getElementById('taskModal').addEventListener('click', e => { if (e.target.id === 'taskModal') closeModal(); });
+            document.getElementById('taskForm').addEventListener('submit', handleFormSubmit);
+            document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+        }
+        async function handleDrop(e) {
+            e.preventDefault();
+            const taskId = e.dataTransfer.getData('text/plain');
+            const targetColumn = e.target.closest('.kanban-column');
+            if (targetColumn && taskId) {
+                const newStatus = targetColumn.dataset.status;
+                if (newStatus === '完了' && !showCompleted) {
+                    justCompletedTaskId = taskId;
+                    const cardElement = document.getElementById(`task-${taskId}`);
+                    if (cardElement) cardElement.classList.add('is-hiding');
+                    setTimeout(() => { if (justCompletedTaskId === taskId) { justCompletedTaskId = null; applyFiltersAndRender(); } }, 5000);
+                }
+                await updateTask(taskId, { status: newStatus });
+            }
+        }
+        async function updateTask(id, data) { if (!tasksCollectionRef) return; data.updatedAt = serverTimestamp(); data.updatedBy = auth.currentUser?.email || 'unknown'; try { await updateDoc(doc(tasksCollectionRef, id), data); } catch (error) { console.error("タスク更新エラー:", error); alert(`タスクの更新に失敗: ${error.message}`); } }
+        function confirmDelete(id) { const modal = document.getElementById('confirmModal'); modal.style.display = 'flex'; const okBtn = document.getElementById('confirmOkBtn'); const cancelBtn = document.getElementById('confirmCancelBtn'); const handleOk = async () => { if (tasksCollectionRef) await deleteDoc(doc(tasksCollectionRef, id)); closeConfirm(); }; const closeConfirm = () => { okBtn.removeEventListener('click', handleOk); cancelBtn.removeEventListener('click', closeConfirm); modal.style.display = 'none'; }; okBtn.addEventListener('click', handleOk, { once: true }); cancelBtn.addEventListener('click', closeConfirm, { once: true }); }
+        function openModal(task = null) {
+            const form = document.getElementById('taskForm');
+            form.reset();
+            const auditInfo = document.getElementById('auditInfo');
+            auditInfo.classList.add('hidden');
+            document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+            if (task) {
+                document.getElementById('modalTitle').textContent = 'タスクを編集';
+                document.getElementById('taskId').value = task.id;
+                document.getElementById('taskName').value = task.name || '';
+                document.getElementById('assignee').value = task.assignee || '';
+                document.getElementById('priority').value = task.priority || '';
+                document.getElementById('startDate').value = task.startDate || '';
+                document.getElementById('endDate').value = task.endDate || '';
+                document.getElementById('status').value = task.status || '未着手';
+                document.getElementById('isToday').checked = task.isToday || false;
+                let auditText = '';
+                if(task.createdAt) auditText += `作成: ${task.createdAt.toLocaleString('ja-JP')} by ${task.createdBy || '不明'}<br>`;
+                if(task.updatedAt) auditText += `最終更新: ${task.updatedAt.toLocaleString('ja-JP')} by ${task.updatedBy || '不明'}`;
+                if(auditText) { auditInfo.innerHTML = auditText; auditInfo.classList.remove('hidden'); }
+            } else {
+                document.getElementById('modalTitle').textContent = '新しいタスク';
+            }
+            document.getElementById('taskModal').style.display = 'flex';
+        }
+        const closeModal = () => document.getElementById('taskModal').style.display = 'none';
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            if (!tasksCollectionRef) { alert("データベースに接続されていません。"); return; }
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.classList.add('is-loading');
+            const id = document.getElementById('taskId').value;
+            const taskData = {
+                name: document.getElementById('taskName').value,
+                assignee: document.getElementById('assignee').value,
+                priority: document.getElementById('priority').value,
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                status: document.getElementById('status').value,
+                isToday: document.getElementById('isToday').checked,
+                updatedAt: serverTimestamp(),
+                updatedBy: auth.currentUser?.email || 'unknown'
+            };
+            try {
+                if (id) {
+                    await updateDoc(doc(tasksCollectionRef, id), taskData);
+                } else {
+                    taskData.createdAt = serverTimestamp();
+                    taskData.createdBy = auth.currentUser?.email || 'unknown';
+                    await addDoc(tasksCollectionRef, taskData);
+                }
+                closeModal();
+            } catch (error) { console.error("タスク保存エラー:", error); alert(`エラー: ${error.message}`); } 
+            finally { submitBtn.classList.remove('is-loading'); }
+        }
+
+        // --- アプリケーション起動 ---
+        initialize();
+    </script>
+</body>
+</html>
