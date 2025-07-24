@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v8 - メール認証版)</title>
+    <title>チーム用タスク管理ツール (v8.1)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +16,7 @@
         .task-card.is-hiding { opacity: 0; transform: scale(0.95); }
         .gantt-chart-grid { display: grid; grid-template-columns: 200px repeat(60, 35px); overflow-x: auto; }
         .gantt-bar { height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; overflow: hidden; white-space: nowrap; padding: 0 4px; }
+        .is-loading { position: relative; color: transparent !important; pointer-events: none; }
         .is-loading::after { content: ''; position: absolute; left: calc(50% - 0.75em); top: calc(50% - 0.75em); width: 1.5em; height: 1.5em; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .tab-active { background-color: white; border-color: #e2e8f0; border-bottom-color: white !important; color: #0f172a; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); transform: translateY(1px); }
@@ -50,10 +51,9 @@
 
     <!-- メインアプリコンテナ (最初は非表示) -->
     <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
-        <!-- (ヘッダー、タブ、コンテンツエリアなどの構造は変更なし) -->
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
             <div>
-                <h1 class="text-3xl font-bold text-slate-900">チームタスク管理</h1>
+                <h1 class="text-3xl font-bold text-slate-900">設計１課１係 タスク管理</h1>
                 <p id="user-email" class="text-slate-500 mt-1"></p>
             </div>
             <div class="flex items-center space-x-4 mt-4 md:mt-0">
@@ -88,7 +88,7 @@
         <main id="content-area" class="mt-6"></main>
     </div>
 
-    <!-- (HTMLテンプレート、モーダルは変更なし) -->
+    <!-- HTMLテンプレート -->
     <template id="board-view-template"><div class="view-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div></template>
     <template id="list-view-template"><div class="view-content bg-white rounded-lg shadow overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">タスク名</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">担当者</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ステータス</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">期間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">優先度</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Today</th><th scope="col" class="relative px-6 py-3"><span class="sr-only">操作</span></th></tr></thead><tbody class="bg-white divide-y divide-slate-200"></tbody></table></div></template>
     <template id="gantt-view-template"><div class="view-content bg-white p-4 rounded-lg shadow overflow-x-auto"></div></template>
@@ -211,7 +211,6 @@
             }, (error) => { console.error("データ取得エラー:", error); displayAppError(`データの読み込みに失敗しました: ${error.message}`); });
         }
         
-        // (フィルター、ビュー描画、データ操作、モーダル関連の関数群は変更なし)
         // --- フィルター & 表示制御 ---
         function updateFilterOptions() {
             const uniqueAssignees = [...new Set(allTasks.flatMap(t => (t.assignee || '').split(',')).map(a => a.trim()).filter(Boolean))].sort();
@@ -376,6 +375,8 @@
                 if(auditText) { auditInfo.innerHTML = auditText; auditInfo.classList.remove('hidden'); }
             } else {
                 document.getElementById('modalTitle').textContent = '新しいタスク';
+                // ★★★ 修正点 ★★★
+                document.getElementById('taskId').value = ''; // 新規作成時にIDを明示的に空にする
             }
             document.getElementById('taskModal').style.display = 'flex';
         }
