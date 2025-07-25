@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v8.1)</title>
+    <title>チーム用タスク管理ツール (v9)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,24 +28,8 @@
     <div id="auth-container" class="min-h-screen flex items-center justify-center bg-slate-100">
         <div class="w-full max-w-md bg-white rounded-lg shadow-md p-8">
             <h2 id="auth-title" class="text-2xl font-bold text-center text-slate-800 mb-6">ログイン</h2>
-            <form id="auth-form">
-                <div class="mb-4">
-                    <label for="email" class="block text-sm font-medium text-slate-700">メールアドレス</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
-                </div>
-                <div class="mb-6">
-                    <label for="password" class="block text-sm font-medium text-slate-700">パスワード</label>
-                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
-                </div>
-                <p id="auth-error" class="text-sm text-red-600 mb-4 text-center hidden"></p>
-                <div>
-                    <button type="submit" id="auth-submit-btn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">ログイン</button>
-                </div>
-            </form>
-            <p class="mt-4 text-center text-sm text-slate-600">
-                <span id="auth-toggle-text">アカウントをお持ちでないですか？</span>
-                <button id="auth-toggle-btn" class="font-medium text-blue-600 hover:text-blue-500">サインアップ</button>
-            </p>
+            <form id="auth-form"><div class="mb-4"><label for="email" class="block text-sm font-medium text-slate-700">メールアドレス</label><input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required></div><div class="mb-6"><label for="password" class="block text-sm font-medium text-slate-700">パスワード</label><input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" required></div><p id="auth-error" class="text-sm text-red-600 mb-4 text-center hidden"></p><div><button type="submit" id="auth-submit-btn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">ログイン</button></div></form>
+            <p class="mt-4 text-center text-sm text-slate-600"><span id="auth-toggle-text">アカウントをお持ちでないですか？</span><button id="auth-toggle-btn" class="font-medium text-blue-600 hover:text-blue-500">サインアップ</button></p>
         </div>
     </div>
 
@@ -56,8 +40,23 @@
                 <h1 class="text-3xl font-bold text-slate-900">設計１課１係 タスク管理</h1>
                 <p id="user-email" class="text-slate-500 mt-1"></p>
             </div>
-            <div class="flex items-center space-x-4 mt-4 md:mt-0">
+            <div class="flex items-center space-x-2 mt-4 md:mt-0">
                 <button id="logout-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors flex items-center">ログアウト</button>
+                <!-- 並べ替えフィルター -->
+                <div class="relative" id="sort-container">
+                    <button id="sort-btn" class="bg-white text-slate-700 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-slate-50 border border-slate-300 transition-colors flex items-center w-48 justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 flex-shrink-0"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
+                        <span id="sort-btn-text" class="truncate">作成日 (古い順)</span>
+                    </button>
+                    <div id="sort-dropdown" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-20 hidden py-1 border border-slate-200">
+                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="createdAt_asc">作成日 (古い順)</a>
+                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="endDate_asc">締切日 (早い順)</a>
+                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="endDate_desc">締切日 (遅い順)</a>
+                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="priority_asc">優先度 (高い順)</a>
+                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="priority_desc">優先度 (低い順)</a>
+                    </div>
+                </div>
+                <!-- 担当者フィルター -->
                 <div class="relative" id="filter-container">
                     <button id="filter-btn" class="bg-white text-slate-700 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-slate-50 border border-slate-300 transition-colors flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
@@ -88,7 +87,7 @@
         <main id="content-area" class="mt-6"></main>
     </div>
 
-    <!-- HTMLテンプレート -->
+    <!-- (HTMLテンプレート、モーダルは変更なし) -->
     <template id="board-view-template"><div class="view-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div></template>
     <template id="list-view-template"><div class="view-content bg-white rounded-lg shadow overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">タスク名</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">担当者</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ステータス</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">期間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">優先度</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Today</th><th scope="col" class="relative px-6 py-3"><span class="sr-only">操作</span></th></tr></thead><tbody class="bg-white divide-y divide-slate-200"></tbody></table></div></template>
     <template id="gantt-view-template"><div class="view-content bg-white p-4 rounded-lg shadow overflow-x-auto"></div></template>
@@ -117,9 +116,11 @@
         let allTasks = [], filteredTasks = [], selectedAssignees = [];
         let currentView = 'board', showCompleted = false, justCompletedTaskId = null;
         let isLoginMode = true;
+        let currentSort = { key: 'createdAt', order: 'asc', text: '作成日 (古い順)' };
 
         const statuses = ['未着手', '進行中', '保留', '完了'];
         const priorities = ['緊急', '高', '定時まで', '時間あれば', '研修・その他'];
+        const priorityOrder = { '緊急': 0, '高': 1, '定時まで': 2, '時間あれば': 3, '研修・その他': 4, '': 5 };
         const priorityColors = { '緊急': 'bg-red-500 text-white', '高': 'bg-red-200 text-red-800', '定時まで': 'bg-yellow-200 text-yellow-800', '時間あれば': 'bg-green-100 text-green-800', '研修・その他': 'bg-slate-100 text-slate-800', '': 'bg-transparent' };
         const statusColors = { '未着手': 'bg-slate-200 text-slate-800', '進行中': 'bg-blue-200 text-blue-800', '保留': 'bg-orange-200 text-orange-800', '完了': 'bg-green-200 text-green-800' };
 
@@ -171,11 +172,8 @@
             const errorEl = document.getElementById('auth-error');
             errorEl.classList.add('hidden');
             try {
-                if (isLoginMode) {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } else {
-                    await createUserWithEmailAndPassword(auth, email, password);
-                }
+                if (isLoginMode) { await signInWithEmailAndPassword(auth, email, password); } 
+                else { await createUserWithEmailAndPassword(auth, email, password); }
             } catch (error) {
                 console.error("Authentication Error:", error);
                 errorEl.textContent = getAuthErrorMessage(error.code);
@@ -205,13 +203,47 @@
             if (!tasksCollectionRef) return;
             onSnapshot(query(tasksCollectionRef), (snapshot) => {
                 allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate(), updatedAt: doc.data().updatedAt?.toDate() }));
-                allTasks.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
                 updateFilterOptions();
                 applyFiltersAndRender();
             }, (error) => { console.error("データ取得エラー:", error); displayAppError(`データの読み込みに失敗しました: ${error.message}`); });
         }
         
-        // --- フィルター & 表示制御 ---
+        // --- フィルター & 並べ替え & 表示制御 ---
+        function applyFiltersAndRender() {
+            let tempTasks = [...allTasks];
+            // 1. 完了タスクのフィルタリング
+            if (!showCompleted) {
+                tempTasks = tempTasks.filter(task => task.status !== '完了' || task.id === justCompletedTaskId);
+            }
+            // 2. 担当者のフィルタリング
+            if (selectedAssignees.length > 0) {
+                tempTasks = tempTasks.filter(task => {
+                    const taskAssignees = (task.assignee || '').split(',').map(a => a.trim());
+                    return selectedAssignees.some(selected => taskAssignees.includes(selected));
+                });
+            }
+            // 3. 並べ替え
+            tempTasks.sort((a, b) => {
+                let valA, valB;
+                switch (currentSort.key) {
+                    case 'endDate':
+                        valA = new Date(a.endDate);
+                        valB = new Date(b.endDate);
+                        break;
+                    case 'priority':
+                        valA = priorityOrder[a.priority] ?? 5;
+                        valB = priorityOrder[b.priority] ?? 5;
+                        break;
+                    default: // createdAt
+                        valA = a.createdAt || 0;
+                        valB = b.createdAt || 0;
+                        break;
+                }
+                return currentSort.order === 'asc' ? valA - valB : valB - valA;
+            });
+            filteredTasks = tempTasks;
+            renderCurrentView();
+        }
         function updateFilterOptions() {
             const uniqueAssignees = [...new Set(allTasks.flatMap(t => (t.assignee || '').split(',')).map(a => a.trim()).filter(Boolean))].sort();
             const optionsContainer = document.getElementById('filter-options');
@@ -228,20 +260,8 @@
             else { selectedAssignees = selectedAssignees.filter(a => a !== assignee); }
             applyFiltersAndRender();
         }
-        function applyFiltersAndRender() {
-            let tempTasks = [...allTasks];
-            if (!showCompleted) {
-                tempTasks = tempTasks.filter(task => task.status !== '完了' || task.id === justCompletedTaskId);
-            }
-            if (selectedAssignees.length > 0) {
-                tempTasks = tempTasks.filter(task => {
-                    const taskAssignees = (task.assignee || '').split(',').map(a => a.trim());
-                    return selectedAssignees.some(selected => taskAssignees.includes(selected));
-                });
-            }
-            filteredTasks = tempTasks;
-            renderCurrentView();
-        }
+
+        // --- ビュー描画 ---
         function renderCurrentView() {
             const contentArea = document.getElementById('content-area');
             contentArea.innerHTML = '';
@@ -323,11 +343,26 @@
             });
             container.appendChild(grid);
         }
+        
+        // --- イベントハンドラ ---
         function setupAppListeners() {
             document.querySelectorAll('.view-tab').forEach(tab => tab.addEventListener('click', (e) => { currentView = e.target.dataset.view; document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('tab-active')); e.currentTarget.classList.add('tab-active'); applyFiltersAndRender(); }));
             document.getElementById('filter-btn').addEventListener('click', () => document.getElementById('filter-dropdown').classList.toggle('hidden'));
             document.getElementById('clear-filter-btn').addEventListener('click', () => { selectedAssignees = []; updateFilterOptions(); applyFiltersAndRender(); });
-            document.addEventListener('click', (e) => { if (!document.getElementById('filter-container').contains(e.target)) { document.getElementById('filter-dropdown').classList.add('hidden'); } });
+            document.getElementById('sort-btn').addEventListener('click', () => document.getElementById('sort-dropdown').classList.toggle('hidden'));
+            document.querySelectorAll('.sort-option').forEach(opt => opt.addEventListener('click', (e) => {
+                e.preventDefault();
+                const sortKey = e.target.dataset.sort;
+                const [key, order] = sortKey.split('_');
+                currentSort = { key, order, text: e.target.textContent };
+                document.getElementById('sort-btn-text').textContent = currentSort.text;
+                document.getElementById('sort-dropdown').classList.add('hidden');
+                applyFiltersAndRender();
+            }));
+            document.addEventListener('click', (e) => { 
+                if (!document.getElementById('filter-container').contains(e.target)) { document.getElementById('filter-dropdown').classList.add('hidden'); }
+                if (!document.getElementById('sort-container').contains(e.target)) { document.getElementById('sort-dropdown').classList.add('hidden'); }
+            });
             document.getElementById('show-completed-checkbox').addEventListener('change', (e) => { showCompleted = e.target.checked; applyFiltersAndRender(); });
             document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
             document.getElementById('cancelBtn').addEventListener('click', closeModal);
@@ -352,6 +387,8 @@
         }
         async function updateTask(id, data) { if (!tasksCollectionRef) return; data.updatedAt = serverTimestamp(); data.updatedBy = auth.currentUser?.email || 'unknown'; try { await updateDoc(doc(tasksCollectionRef, id), data); } catch (error) { console.error("タスク更新エラー:", error); alert(`タスクの更新に失敗: ${error.message}`); } }
         function confirmDelete(id) { const modal = document.getElementById('confirmModal'); modal.style.display = 'flex'; const okBtn = document.getElementById('confirmOkBtn'); const cancelBtn = document.getElementById('confirmCancelBtn'); const handleOk = async () => { if (tasksCollectionRef) await deleteDoc(doc(tasksCollectionRef, id)); closeConfirm(); }; const closeConfirm = () => { okBtn.removeEventListener('click', handleOk); cancelBtn.removeEventListener('click', closeConfirm); modal.style.display = 'none'; }; okBtn.addEventListener('click', handleOk, { once: true }); cancelBtn.addEventListener('click', closeConfirm, { once: true }); }
+        
+        // --- モーダル関連 ---
         function openModal(task = null) {
             const form = document.getElementById('taskForm');
             form.reset();
@@ -375,8 +412,7 @@
                 if(auditText) { auditInfo.innerHTML = auditText; auditInfo.classList.remove('hidden'); }
             } else {
                 document.getElementById('modalTitle').textContent = '新しいタスク';
-                // ★★★ 修正点 ★★★
-                document.getElementById('taskId').value = ''; // 新規作成時にIDを明示的に空にする
+                document.getElementById('taskId').value = '';
             }
             document.getElementById('taskModal').style.display = 'flex';
         }
