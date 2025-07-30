@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v11)</title>
+    <title>チーム用タスク管理ツール (v12 - 修正版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,9 +20,8 @@
         .is-loading::after { content: ''; position: absolute; left: calc(50% - 0.75em); top: calc(50% - 0.75em); width: 1.5em; height: 1.5em; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .tab-active { background-color: white; border-color: #e2e8f0; border-bottom-color: white !important; color: #0f172a; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); transform: translateY(1px); }
-        /* 期限切れ・期限間近のハイライト */
-        .due-overdue { background-color: #fee2e2; } /* red-100 */
-        .due-soon { background-color: #fef3c7; } /* amber-100 */
+        .due-overdue { background-color: #fee2e2 !important; } /* red-100 */
+        .due-soon { background-color: #fef3c7 !important; } /* amber-100 */
     </style>
 </head>
 <body class="antialiased text-slate-800">
@@ -200,31 +199,21 @@
 
         // --- 通知機能 ---
         function setupNotifications() {
-            if (!("Notification" in window)) {
-                console.log("This browser does not support desktop notification");
-                return;
-            }
-            if (Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
+            if (!("Notification" in window)) { console.log("This browser does not support desktop notification"); return; }
+            if (Notification.permission === 'default') { Notification.requestPermission(); }
             if (notificationInterval) clearInterval(notificationInterval);
             notificationInterval = setInterval(checkNotifications, 60000); // 1分ごとにチェック
         }
-
         function checkNotifications() {
             if (Notification.permission !== 'granted') return;
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-
             allTasks.forEach(task => {
                 if (task.notifyOnDueDate && !task.notificationSent && task.endDate) {
                     const dueDate = new Date(task.endDate);
                     dueDate.setHours(0, 0, 0, 0);
                     if (dueDate.getTime() === today.getTime()) {
-                        new Notification('タスクの締切日です', {
-                            body: task.name,
-                            icon: 'https://img.icons8.com/fluency/48/task.png'
-                        });
+                        new Notification('タスクの締切日です', { body: task.name, icon: 'https://img.icons8.com/fluency/48/task.png' });
                         updateTask(task.id, { notificationSent: true });
                     }
                 }
@@ -244,9 +233,7 @@
         // --- フィルター & 並べ替え & 表示制御 ---
         function applyFiltersAndRender() {
             let tempTasks = [...allTasks];
-            if (!showCompleted) {
-                tempTasks = tempTasks.filter(task => task.status !== '完了' || task.id === justCompletedTaskId);
-            }
+            if (!showCompleted) { tempTasks = tempTasks.filter(task => task.status !== '完了' || task.id === justCompletedTaskId); }
             if (selectedAssignees.length > 0) {
                 tempTasks = tempTasks.filter(task => {
                     const taskAssignees = (task.assignee || '').split(',').map(a => a.trim());
@@ -292,12 +279,10 @@
             tomorrow.setHours(0, 0, 0, 0);
             const dueDate = new Date(task.endDate);
             dueDate.setHours(0, 0, 0, 0);
-
             if (dueDate < today) return 'due-overdue';
             if (dueDate <= tomorrow) return 'due-soon';
             return '';
         }
-
         function renderCurrentView() {
             const contentArea = document.getElementById('content-area');
             contentArea.innerHTML = '';
