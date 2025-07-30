@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v10)</title>
+    <title>チーム用タスク管理ツール (v11 - 通知・強調表示機能版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,6 +20,9 @@
         .is-loading::after { content: ''; position: absolute; left: calc(50% - 0.75em); top: calc(50% - 0.75em); width: 1.5em; height: 1.5em; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .tab-active { background-color: white; border-color: #e2e8f0; border-bottom-color: white !important; color: #0f172a; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); transform: translateY(1px); }
+        /* 期限切れ・期限間近のハイライト */
+        .due-overdue { background-color: #fee2e2; } /* red-100 */
+        .due-soon { background-color: #fef3c7; } /* amber-100 */
     </style>
 </head>
 <body class="antialiased text-slate-800">
@@ -42,21 +45,19 @@
             </div>
             <div class="flex items-center flex-wrap gap-2 mt-4 lg:mt-0">
                 <button id="logout-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-3 text-sm rounded-lg hover:bg-slate-300 transition-colors flex items-center">ログアウト</button>
-                <!-- 並べ替えフィルター -->
                 <div class="relative" id="sort-container">
                     <button id="sort-btn" class="bg-white text-slate-700 font-semibold py-2 px-3 text-sm rounded-lg shadow-md hover:bg-slate-50 border border-slate-300 transition-colors flex items-center w-44 justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 flex-shrink-0"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
-                        <span id="sort-btn-text" class="truncate">作成日 (古い順)</span>
+                        <span id="sort-btn-text" class="truncate"></span>
                     </button>
                     <div id="sort-dropdown" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-20 hidden py-1 border border-slate-200">
-                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="createdAt_asc">作成日 (古い順)</a>
                         <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="endDate_asc">締切日 (早い順)</a>
                         <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="endDate_desc">締切日 (遅い順)</a>
                         <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="priority_asc">優先度 (高い順)</a>
                         <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="priority_desc">優先度 (低い順)</a>
+                        <a href="#" class="sort-option block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" data-sort="createdAt_asc">作成日 (古い順)</a>
                     </div>
                 </div>
-                <!-- 担当者フィルター -->
                 <div class="relative" id="filter-container">
                     <button id="filter-btn" class="bg-white text-slate-700 font-semibold py-2 px-3 text-sm rounded-lg shadow-md hover:bg-slate-50 border border-slate-300 transition-colors flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
@@ -89,9 +90,10 @@
 
     <!-- HTMLテンプレート -->
     <template id="board-view-template"><div class="view-content grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6"></div></template>
-    <template id="list-view-template"><div class="view-content bg-white rounded-lg shadow overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">タスク名</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">担当者</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ステータス</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">期間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">優先度</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ボードビューに表示</th><th scope="col" class="relative px-6 py-3"><span class="sr-only">操作</span></th></tr></thead><tbody class="bg-white divide-y divide-slate-200"></tbody></table></div></template>
+    <template id="list-view-template"><div class="view-content bg-white rounded-lg shadow overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">タスク名</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">担当者</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ステータス</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">期間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">優先度</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ボード表示</th></tr></thead><tbody class="bg-white divide-y divide-slate-200"></tbody></table></div></template>
     <template id="gantt-view-template"><div class="view-content bg-white p-4 rounded-lg shadow overflow-x-auto"></div></template>
-    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4"><div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-lg max-h-full overflow-y-auto"><h2 id="modalTitle" class="text-2xl font-bold mb-6">新しいタスク</h2><form id="taskForm"><input type="hidden" id="taskId"><div class="mb-4"><label for="taskName" class="block text-sm font-medium text-slate-700">タスク名</label><input type="text" id="taskName" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div><div class="mb-4"><label for="assignee" class="block text-sm font-medium text-slate-700">担当者 (複数名はカンマ区切り)</label><input type="text" id="assignee" placeholder="田中, 鈴木" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div><label for="priority" class="block text-sm font-medium text-slate-700">優先度</label><select id="priority" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option value=""></option></select></div><div><label for="status" class="block text-sm font-medium text-slate-700">ステータス</label><select id="status" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div><label for="startDate" class="block text-sm font-medium text-slate-700">開始日</label><input type="date" id="startDate" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div><div><label for="endDate" class="block text-sm font-medium text-slate-700">終了日</label><input type="date" id="endDate" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div></div><div class="flex items-center mb-4"><input id="isToday" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="isToday" class="ml-2 block text-sm text-gray-900">ボードビューに表示</label></div><div id="auditInfo" class="text-xs text-slate-400 bg-slate-50 p-2 rounded-md mb-6 border border-slate-200 hidden"></div><div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50">キャンセル</button><button type="submit" id="submitBtn" class="bg-blue-600 text-white py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium hover:bg-blue-700">保存</button></div></form></div></div>
+    <div id="task-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden items-center justify-center p-4"><div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-lg max-h-full overflow-y-auto"><div id="task-detail-content"></div><div class="mt-6 flex justify-end space-x-4"><button type="button" id="detail-edit-btn" class="bg-blue-600 text-white py-2 px-4 rounded-md shadow-sm text-sm font-medium hover:bg-blue-700">編集</button><button type="button" id="detail-delete-btn" class="bg-red-600 text-white py-2 px-4 rounded-md shadow-sm text-sm font-medium hover:bg-red-700">削除</button><button type="button" id="detail-close-btn" class="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50">閉じる</button></div></div></div>
+    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4"><div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-lg max-h-full overflow-y-auto"><h2 id="modalTitle" class="text-2xl font-bold mb-6">新しいタスク</h2><form id="taskForm"><input type="hidden" id="taskId"><div class="mb-4"><label for="taskName" class="block text-sm font-medium text-slate-700">タスク名</label><input type="text" id="taskName" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div><div class="mb-4"><label for="assignee" class="block text-sm font-medium text-slate-700">担当者 (複数名はカンマ区切り)</label><input type="text" id="assignee" placeholder="田中, 鈴木" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div><label for="priority" class="block text-sm font-medium text-slate-700">優先度</label><select id="priority" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option value=""></option></select></div><div><label for="status" class="block text-sm font-medium text-slate-700">ステータス</label><select id="status" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></select></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div><label for="startDate" class="block text-sm font-medium text-slate-700">開始日</label><input type="date" id="startDate" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div><div><label for="endDate" class="block text-sm font-medium text-slate-700">終了日</label><input type="date" id="endDate" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required></div></div><div class="flex items-center justify-between mb-4"><label class="flex items-center text-sm text-gray-900"><input id="isToday" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="ml-2">ボードビューに表示</span></label><label class="flex items-center text-sm text-gray-900"><input id="notifyOnDueDate" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="ml-2">締切日にデスクトップ通知</span></label></div><div id="auditInfo" class="text-xs text-slate-400 bg-slate-50 p-2 rounded-md mb-6 border border-slate-200 hidden"></div><div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50">キャンセル</button><button type="submit" id="submitBtn" class="bg-blue-600 text-white py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium hover:bg-blue-700">保存</button></div></form></div></div>
     <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4"><div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm"><h3 id="confirmTitle" class="text-lg font-medium leading-6 text-gray-900">タスクの削除</h3><div class="mt-2"><p id="confirmMessage" class="text-sm text-gray-500">このタスクを本当に削除しますか？この操作は元に戻せません。</p></div><div class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense"><button id="confirmOkBtn" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700">削除</button><button id="confirmCancelBtn" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0">キャンセル</button></div></div></div>
 
     <!-- Firebase SDKの読み込み -->
@@ -112,11 +114,11 @@
         // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         // --- グローバル変数 & 定数 ---
-        let auth, tasksCollectionRef;
+        let auth, tasksCollectionRef, notificationInterval = null;
         let allTasks = [], filteredTasks = [], selectedAssignees = [];
         let currentView = 'board', showCompleted = false, justCompletedTaskId = null;
         let isLoginMode = true;
-        let currentSort = { key: 'createdAt', order: 'asc', text: '作成日 (古い順)' };
+        let currentSort = { key: 'endDate', order: 'asc', text: '締切日 (早い順)' };
 
         const statuses = ['未着手', '進行中', '保留', '完了'];
         const priorities = ['緊急', '高', '定時まで', '時間あれば', '研修・その他'];
@@ -139,8 +141,7 @@
             } catch (e) { console.error("Firebaseの初期化に失敗:", e); displayAppError(`Firebaseの初期化に失敗しました: ${e.message}`); }
         }
         function setupModalOptions() {
-            const prioritySelect = document.getElementById('priority');
-            prioritySelect.innerHTML = '<option value=""></option>' + priorities.map(p => `<option value="${p}">${p}</option>`).join('');
+            document.getElementById('priority').innerHTML = '<option value=""></option>' + priorities.map(p => `<option value="${p}">${p}</option>`).join('');
             document.getElementById('status').innerHTML = statuses.map(s => `<option value="${s}">${s}</option>`).join('');
         }
 
@@ -151,17 +152,17 @@
         }
         function handleAuthState() {
             onAuthStateChanged(auth, user => {
-                const authContainer = document.getElementById('auth-container');
-                const appContainer = document.getElementById('app-container');
                 if (user) {
-                    authContainer.classList.add('hidden');
-                    appContainer.classList.remove('hidden');
+                    document.getElementById('auth-container').classList.add('hidden');
+                    document.getElementById('app-container').classList.remove('hidden');
                     document.getElementById('user-email').textContent = `ログイン中: ${user.email}`;
                     setupAppListeners();
                     setupRealtimeListener();
+                    setupNotifications();
                 } else {
-                    authContainer.classList.remove('hidden');
-                    appContainer.classList.add('hidden');
+                    document.getElementById('auth-container').classList.remove('hidden');
+                    document.getElementById('app-container').classList.add('hidden');
+                    if (notificationInterval) clearInterval(notificationInterval);
                 }
             });
         }
@@ -175,7 +176,6 @@
                 if (isLoginMode) { await signInWithEmailAndPassword(auth, email, password); } 
                 else { await createUserWithEmailAndPassword(auth, email, password); }
             } catch (error) {
-                console.error("Authentication Error:", error);
                 errorEl.textContent = getAuthErrorMessage(error.code);
                 errorEl.classList.remove('hidden');
             }
@@ -196,6 +196,39 @@
                 case 'auth/weak-password': return 'パスワードは6文字以上で入力してください。';
                 default: return 'エラーが発生しました。入力内容を確認してください。';
             }
+        }
+
+        // --- 通知機能 ---
+        function setupNotifications() {
+            if (!("Notification" in window)) {
+                console.log("This browser does not support desktop notification");
+                return;
+            }
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            if (notificationInterval) clearInterval(notificationInterval);
+            notificationInterval = setInterval(checkNotifications, 60000); // 1分ごとにチェック
+        }
+
+        function checkNotifications() {
+            if (Notification.permission !== 'granted') return;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            allTasks.forEach(task => {
+                if (task.notifyOnDueDate && !task.notificationSent && task.endDate) {
+                    const dueDate = new Date(task.endDate);
+                    dueDate.setHours(0, 0, 0, 0);
+                    if (dueDate.getTime() === today.getTime()) {
+                        new Notification('タスクの締切日です', {
+                            body: task.name,
+                            icon: 'https://img.icons8.com/fluency/48/task.png'
+                        });
+                        updateTask(task.id, { notificationSent: true });
+                    }
+                }
+            });
         }
 
         // --- Firestoreリアルタイムリスナー ---
@@ -250,6 +283,21 @@
         }
 
         // --- ビュー描画 ---
+        function getHighlightClass(task) {
+            if (!task.endDate || task.status === '完了' || task.status === '保留') return '';
+            const today = new Date();
+            const tomorrow = new Date();
+            today.setHours(0, 0, 0, 0);
+            tomorrow.setDate(today.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            const dueDate = new Date(task.endDate);
+            dueDate.setHours(0, 0, 0, 0);
+
+            if (dueDate < today) return 'due-overdue';
+            if (dueDate <= tomorrow) return 'due-soon';
+            return '';
+        }
+
         function renderCurrentView() {
             const contentArea = document.getElementById('content-area');
             contentArea.innerHTML = '';
@@ -269,12 +317,12 @@
                 filteredTasks.filter(t => t.status === status && t.isToday).forEach(task => {
                     const card = document.createElement('div');
                     card.id = `task-${task.id}`;
-                    card.className = 'task-card bg-white p-4 rounded-lg shadow';
+                    card.className = `task-card bg-white p-4 rounded-lg shadow ${getHighlightClass(task)}`;
                     card.draggable = true;
                     card.dataset.id = task.id;
                     card.innerHTML = `<p class="font-semibold">${task.name}</p><p class="text-sm text-slate-500 mt-1">${task.assignee || '(担当者未設定)'}</p><div class="mt-2 flex justify-between items-center"><span class="text-xs font-medium px-2 py-1 rounded-full ${priorityColors[task.priority] || ''}">${task.priority}</span><span class="text-xs text-slate-400">作成日: ${task.createdAt?.toLocaleDateString('ja-JP') || '日付不明'}</span></div>`;
                     card.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.currentTarget.dataset.id));
-                    card.addEventListener('click', () => openModal(task));
+                    card.addEventListener('click', () => openDetailModal(task));
                     taskContainer.appendChild(card);
                 });
                 column.addEventListener('dragover', e => e.preventDefault());
@@ -286,18 +334,16 @@
             const listBody = document.querySelector('#content-area tbody');
             filteredTasks.forEach(task => {
                 const row = listBody.insertRow();
-                row.className = 'hover:bg-slate-50';
+                row.className = `hover:bg-slate-50 ${getHighlightClass(task)}`;
                 row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-slate-900">${task.name}</div><div class="text-xs text-slate-500">作成日: ${task.createdAt?.toLocaleDateString('ja-JP') || '---'}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap"><a href="#" class="task-detail-link text-sm font-medium text-blue-600 hover:underline" data-id="${task.id}">${task.name}</a><div class="text-xs text-slate-500">作成日: ${task.createdAt?.toLocaleDateString('ja-JP') || '---'}</div></td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${task.assignee || '(担当者未設定)'}</td>
                     <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[task.status] || ''}">${task.status}</span></td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${task.startDate} ~ ${task.endDate}</td>
                     <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColors[task.priority] || ''}">${task.priority}</span></td>
-                    <td class="px-6 py-4 whitespace-nowrap"><input type="checkbox" class="today-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" data-id="${task.id}" ${task.isToday ? 'checked' : ''}></td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4"><button class="edit-btn text-blue-600 hover:text-blue-900" data-id="${task.id}">編集</button><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}">削除</button></td>`;
+                    <td class="px-6 py-4 whitespace-nowrap"><input type="checkbox" class="today-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" data-id="${task.id}" ${task.isToday ? 'checked' : ''}></td>`;
             });
-            listBody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', e => openModal(allTasks.find(t => t.id === e.target.dataset.id))));
-            listBody.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', e => confirmDelete(e.target.dataset.id)));
+            listBody.querySelectorAll('.task-detail-link').forEach(b => b.addEventListener('click', e => { e.preventDefault(); openDetailModal(allTasks.find(t => t.id === e.target.dataset.id)); }));
             listBody.querySelectorAll('.today-checkbox').forEach(b => b.addEventListener('change', e => updateTask(e.target.dataset.id, { isToday: e.target.checked })));
         }
         function renderGanttView() {
@@ -315,7 +361,8 @@
             grid.innerHTML = `<div class="sticky left-0 bg-slate-100 p-2 font-semibold border-b border-r border-slate-200 z-10">タスク</div>`;
             days.forEach(day => grid.innerHTML += `<div class="p-2 text-center text-xs border-b border-r border-slate-200 ${[0,6].includes(day.getDay()) ? 'bg-slate-50' : ''}">${day.getMonth()+1}/${day.getDate()}</div>`);
             filteredTasks.forEach(task => {
-                grid.innerHTML += `<div class="sticky left-0 bg-white p-2 text-sm border-b border-r border-slate-200 truncate z-10" title="${task.name}">${task.name}</div>`;
+                const highlightClass = getHighlightClass(task) ? 'bg-opacity-20' : '';
+                grid.innerHTML += `<div class="sticky left-0 bg-white p-2 text-sm border-b border-r border-slate-200 truncate z-10 ${getHighlightClass(task)}" title="${task.name}">${task.name}</div>`;
                 const taskStart = new Date(new Date(task.startDate).setHours(0,0,0,0));
                 days.forEach(day => {
                     const cell = document.createElement('div');
@@ -338,25 +385,17 @@
             document.getElementById('filter-btn').addEventListener('click', () => document.getElementById('filter-dropdown').classList.toggle('hidden'));
             document.getElementById('clear-filter-btn').addEventListener('click', () => { selectedAssignees = []; updateFilterOptions(); applyFiltersAndRender(); });
             document.getElementById('sort-btn').addEventListener('click', () => document.getElementById('sort-dropdown').classList.toggle('hidden'));
-            document.querySelectorAll('.sort-option').forEach(opt => opt.addEventListener('click', (e) => {
-                e.preventDefault();
-                const sortKey = e.target.dataset.sort;
-                const [key, order] = sortKey.split('_');
-                currentSort = { key, order, text: e.target.textContent };
-                document.getElementById('sort-btn-text').textContent = currentSort.text;
-                document.getElementById('sort-dropdown').classList.add('hidden');
-                applyFiltersAndRender();
-            }));
-            document.addEventListener('click', (e) => { 
-                if (!document.getElementById('filter-container').contains(e.target)) { document.getElementById('filter-dropdown').classList.add('hidden'); }
-                if (!document.getElementById('sort-container').contains(e.target)) { document.getElementById('sort-dropdown').classList.add('hidden'); }
-            });
+            document.querySelectorAll('.sort-option').forEach(opt => opt.addEventListener('click', (e) => { e.preventDefault(); const sortKey = e.target.dataset.sort; const [key, order] = sortKey.split('_'); currentSort = { key, order, text: e.target.textContent }; document.getElementById('sort-btn-text').textContent = currentSort.text; document.getElementById('sort-dropdown').classList.add('hidden'); applyFiltersAndRender(); }));
+            document.addEventListener('click', (e) => { if (!document.getElementById('filter-container').contains(e.target)) { document.getElementById('filter-dropdown').classList.add('hidden'); } if (!document.getElementById('sort-container').contains(e.target)) { document.getElementById('sort-dropdown').classList.add('hidden'); } });
             document.getElementById('show-completed-checkbox').addEventListener('change', (e) => { showCompleted = e.target.checked; applyFiltersAndRender(); });
-            document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
-            document.getElementById('cancelBtn').addEventListener('click', closeModal);
-            document.getElementById('taskModal').addEventListener('click', e => { if (e.target.id === 'taskModal') closeModal(); });
+            document.getElementById('addTaskBtn').addEventListener('click', () => openEditModal());
+            document.getElementById('cancelBtn').addEventListener('click', closeEditModal);
+            document.getElementById('taskModal').addEventListener('click', e => { if (e.target.id === 'taskModal') closeEditModal(); });
             document.getElementById('taskForm').addEventListener('submit', handleFormSubmit);
             document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+            document.getElementById('detail-close-btn').addEventListener('click', closeDetailModal);
+            document.getElementById('task-detail-modal').addEventListener('click', e => { if (e.target.id === 'task-detail-modal') closeDetailModal(); });
+            document.getElementById('sort-btn-text').textContent = currentSort.text;
         }
         async function handleDrop(e) {
             e.preventDefault();
@@ -364,24 +403,50 @@
             const targetColumn = e.target.closest('.kanban-column');
             if (targetColumn && taskId) {
                 const newStatus = targetColumn.dataset.status;
-                if (newStatus === '完了' && !showCompleted) {
-                    justCompletedTaskId = taskId;
-                    const cardElement = document.getElementById(`task-${taskId}`);
-                    if (cardElement) cardElement.classList.add('is-hiding');
-                    setTimeout(() => { if (justCompletedTaskId === taskId) { justCompletedTaskId = null; applyFiltersAndRender(); } }, 5000);
+                const updateData = { status: newStatus };
+                if (newStatus === '完了') {
+                    updateData.isToday = false;
+                    if (!showCompleted) {
+                        justCompletedTaskId = taskId;
+                        const cardElement = document.getElementById(`task-${taskId}`);
+                        if (cardElement) cardElement.classList.add('is-hiding');
+                        setTimeout(() => { if (justCompletedTaskId === taskId) { justCompletedTaskId = null; applyFiltersAndRender(); } }, 5000);
+                    }
                 }
-                await updateTask(taskId, { status: newStatus });
+                await updateTask(taskId, updateData);
             }
         }
         async function updateTask(id, data) { if (!tasksCollectionRef) return; data.updatedAt = serverTimestamp(); data.updatedBy = auth.currentUser?.email || 'unknown'; try { await updateDoc(doc(tasksCollectionRef, id), data); } catch (error) { console.error("タスク更新エラー:", error); alert(`タスクの更新に失敗: ${error.message}`); } }
         function confirmDelete(id) { const modal = document.getElementById('confirmModal'); modal.style.display = 'flex'; const okBtn = document.getElementById('confirmOkBtn'); const cancelBtn = document.getElementById('confirmCancelBtn'); const handleOk = async () => { if (tasksCollectionRef) await deleteDoc(doc(tasksCollectionRef, id)); closeConfirm(); }; const closeConfirm = () => { okBtn.removeEventListener('click', handleOk); cancelBtn.removeEventListener('click', closeConfirm); modal.style.display = 'none'; }; okBtn.addEventListener('click', handleOk, { once: true }); cancelBtn.addEventListener('click', closeConfirm, { once: true }); }
         
         // --- モーダル関連 ---
-        function openModal(task = null) {
+        function openDetailModal(task) {
+            const content = document.getElementById('task-detail-content');
+            content.innerHTML = `
+                <h3 class="text-2xl font-bold text-slate-900 mb-4">${task.name}</h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex"><strong class="w-24 text-slate-500">担当者:</strong> <span class="flex-1">${task.assignee || '---'}</span></div>
+                    <div class="flex"><strong class="w-24 text-slate-500">ステータス:</strong> <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[task.status] || ''}">${task.status}</span></div>
+                    <div class="flex"><strong class="w-24 text-slate-500">期間:</strong> <span class="flex-1">${task.startDate} ~ ${task.endDate}</span></div>
+                    <div class="flex"><strong class="w-24 text-slate-500">優先度:</strong> <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColors[task.priority] || ''}">${task.priority || '---'}</span></div>
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <div class="flex"><strong class="w-24 text-slate-500">作成日時:</strong> <span class="flex-1">${task.createdAt?.toLocaleString('ja-JP') || '---'}</span></div>
+                        <div class="flex"><strong class="w-24 text-slate-500">作成者:</strong> <span class="flex-1">${task.createdBy || '---'}</span></div>
+                        <div class="flex"><strong class="w-24 text-slate-500">最終更新:</strong> <span class="flex-1">${task.updatedAt?.toLocaleString('ja-JP') || '---'}</span></div>
+                        <div class="flex"><strong class="w-24 text-slate-500">更新者:</strong> <span class="flex-1">${task.updatedBy || '---'}</span></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('detail-edit-btn').onclick = () => { closeDetailModal(); openEditModal(task); };
+            document.getElementById('detail-delete-btn').onclick = () => { closeDetailModal(); confirmDelete(task.id); };
+            document.getElementById('task-detail-modal').style.display = 'flex';
+        }
+        const closeDetailModal = () => document.getElementById('task-detail-modal').style.display = 'none';
+
+        function openEditModal(task = null) {
             const form = document.getElementById('taskForm');
             form.reset();
-            const auditInfo = document.getElementById('auditInfo');
-            auditInfo.classList.add('hidden');
+            document.getElementById('auditInfo').classList.add('hidden');
             document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
             document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
             if (task) {
@@ -394,23 +459,25 @@
                 document.getElementById('endDate').value = task.endDate || '';
                 document.getElementById('status').value = task.status || '未着手';
                 document.getElementById('isToday').checked = task.isToday || false;
+                document.getElementById('notifyOnDueDate').checked = task.notifyOnDueDate || false;
                 let auditText = '';
                 if(task.createdAt) auditText += `作成: ${task.createdAt.toLocaleString('ja-JP')} by ${task.createdBy || '不明'}<br>`;
                 if(task.updatedAt) auditText += `最終更新: ${task.updatedAt.toLocaleString('ja-JP')} by ${task.updatedBy || '不明'}`;
-                if(auditText) { auditInfo.innerHTML = auditText; auditInfo.classList.remove('hidden'); }
+                if(auditText) { document.getElementById('auditInfo').innerHTML = auditText; document.getElementById('auditInfo').classList.remove('hidden'); }
             } else {
                 document.getElementById('modalTitle').textContent = '新しいタスク';
                 document.getElementById('taskId').value = '';
             }
             document.getElementById('taskModal').style.display = 'flex';
         }
-        const closeModal = () => document.getElementById('taskModal').style.display = 'none';
+        const closeEditModal = () => document.getElementById('taskModal').style.display = 'none';
         async function handleFormSubmit(e) {
             e.preventDefault();
             if (!tasksCollectionRef) { alert("データベースに接続されていません。"); return; }
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.classList.add('is-loading');
             const id = document.getElementById('taskId').value;
+            const originalTask = id ? allTasks.find(t => t.id === id) : {};
             const taskData = {
                 name: document.getElementById('taskName').value,
                 assignee: document.getElementById('assignee').value,
@@ -419,18 +486,26 @@
                 endDate: document.getElementById('endDate').value,
                 status: document.getElementById('status').value,
                 isToday: document.getElementById('isToday').checked,
+                notifyOnDueDate: document.getElementById('notifyOnDueDate').checked,
                 updatedAt: serverTimestamp(),
                 updatedBy: auth.currentUser?.email || 'unknown'
             };
+            if (taskData.status === '完了') {
+                taskData.isToday = false;
+            }
+            if (taskData.endDate !== originalTask.endDate) {
+                taskData.notificationSent = false;
+            }
             try {
                 if (id) {
                     await updateDoc(doc(tasksCollectionRef, id), taskData);
                 } else {
                     taskData.createdAt = serverTimestamp();
                     taskData.createdBy = auth.currentUser?.email || 'unknown';
+                    taskData.notificationSent = false;
                     await addDoc(tasksCollectionRef, taskData);
                 }
-                closeModal();
+                closeEditModal();
             } catch (error) { console.error("タスク保存エラー:", error); alert(`エラー: ${error.message}`); } 
             finally { submitBtn.classList.remove('is-loading'); }
         }
