@@ -302,15 +302,17 @@
                 filteredTasks.filter(t => t.status === status && t.isToday).forEach(task => {
                     const card = document.createElement('div');
                     card.id = `task-${task.id}`;
-                    // ★★★ 修正点 ★★★
-                    const hidingClass = (task.id === justCompletedTaskId) ? 'is-hiding' : '';
-                    card.className = `task-card bg-white p-4 rounded-lg shadow ${getHighlightClass(task)} ${hidingClass}`;
+                    card.className = `task-card bg-white p-4 rounded-lg shadow ${getHighlightClass(task)}`;
                     card.draggable = true;
                     card.dataset.id = task.id;
                     card.innerHTML = `<p class="font-semibold">${task.name}</p><p class="text-sm text-slate-500 mt-1">${task.assignee || '(担当者未設定)'}</p><div class="mt-2 flex justify-between items-center"><span class="text-xs font-medium px-2 py-1 rounded-full ${priorityColors[task.priority] || ''}">${task.priority || '---'}</span><span class="text-xs text-slate-400">締切: ${task.endDate || '未設定'}</span></div>`;
                     card.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.currentTarget.dataset.id));
                     card.addEventListener('click', () => openDetailModal(task));
                     taskContainer.appendChild(card);
+                    // ★★★ 修正点 ★★★
+                    if (task.id === justCompletedTaskId) {
+                        setTimeout(() => card.classList.add('is-hiding'), 50);
+                    }
                 });
                 column.addEventListener('dragover', e => e.preventDefault());
                 column.addEventListener('drop', handleDrop);
@@ -395,9 +397,6 @@
                     updateData.isToday = false;
                     if (!showCompleted) {
                         justCompletedTaskId = taskId;
-                        // ★★★ 修正点 ★★★
-                        // setTimeoutの前に再描画をトリガーしてis-hidingクラスを確実に適用
-                        applyFiltersAndRender(); 
                         setTimeout(() => { if (justCompletedTaskId === taskId) { justCompletedTaskId = null; applyFiltersAndRender(); } }, 3000);
                     }
                 }
