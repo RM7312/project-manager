@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v12.3)</title>
+    <title>チーム用タスク管理ツール (v12.4)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,7 +115,7 @@
         // --- グローバル変数 & 定数 ---
         let auth, tasksCollectionRef, notificationInterval = null;
         let allTasks = [], filteredTasks = [], selectedAssignees = [];
-        let currentView = 'board', showCompleted = false, justCompletedTaskId = null;
+        let currentView = 'board', showCompleted = false;
         let isLoginMode = true;
         let currentSort = { key: 'endDate', order: 'asc', text: '締切日 (早い順)' };
 
@@ -233,7 +233,7 @@
         // --- フィルター & 並べ替え & 表示制御 ---
         function applyFiltersAndRender() {
             let tempTasks = [...allTasks];
-            if (!showCompleted) { tempTasks = tempTasks.filter(task => task.status !== '完了' || task.id === justCompletedTaskId); }
+            if (!showCompleted) { tempTasks = tempTasks.filter(task => task.status !== '完了'); }
             if (selectedAssignees.length > 0) {
                 tempTasks = tempTasks.filter(task => {
                     const taskAssignees = (task.assignee || '').split(',').map(a => a.trim());
@@ -309,10 +309,6 @@
                     card.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.currentTarget.dataset.id));
                     card.addEventListener('click', () => openDetailModal(task));
                     taskContainer.appendChild(card);
-                    // ★★★ 修正点 ★★★
-                    if (task.id === justCompletedTaskId) {
-                        setTimeout(() => card.classList.add('is-hiding'), 50);
-                    }
                 });
                 column.addEventListener('dragover', e => e.preventDefault());
                 column.addEventListener('drop', handleDrop);
@@ -390,17 +386,22 @@
             e.preventDefault();
             const taskId = e.dataTransfer.getData('text/plain');
             const targetColumn = e.target.closest('.kanban-column');
-            if (targetColumn && taskId) {
+            const taskCard = document.getElementById(`task-${taskId}`);
+            if (targetColumn && taskId && taskCard) {
                 const newStatus = targetColumn.dataset.status;
-                const updateData = { status: newStatus };
-                if (newStatus === '完了') {
-                    updateData.isToday = false;
-                    if (!showCompleted) {
-                        justCompletedTaskId = taskId;
-                        setTimeout(() => { if (justCompletedTaskId === taskId) { justCompletedTaskId = null; applyFiltersAndRender(); } }, 3000);
-                    }
+                const originalStatus = allTasks.find(t => t.id === taskId)?.status;
+                if (newStatus === '完了' && originalStatus !== '完了' && !showCompleted) {
+                    const taskContainer = targetColumn.querySelector('.space-y-4');
+                    taskContainer.appendChild(taskCard);
+                    setTimeout(() => taskCard.classList.add('is-hiding'), 50);
+                    setTimeout(async () => {
+                        await updateTask(taskId, { status: newStatus, isToday: false });
+                    }, 3000);
+                } else {
+                    const updateData = { status: newStatus };
+                    if (newStatus === '完了') { updateData.isToday = false; }
+                    await updateTask(taskId, updateData);
                 }
-                await updateTask(taskId, updateData);
             }
         }
         async function updateTask(id, data) { if (!tasksCollectionRef) return; data.updatedAt = serverTimestamp(); data.updatedBy = auth.currentUser?.email || 'unknown'; try { await updateDoc(doc(tasksCollectionRef, id), data); } catch (error) { console.error("タスク更新エラー:", error); alert(`タスクの更新に失敗: ${error.message}`); } }
