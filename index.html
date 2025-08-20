@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v13.1)</title>
+    <title>チーム用タスク管理ツール (v13.2)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,6 +96,7 @@
                 </div>
             </div>
         </div>
+
         <div class="flex items-center space-x-4 mb-4">
             <label class="flex items-center text-sm text-slate-600 cursor-pointer"><input type="checkbox" id="show-completed-checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="ml-2">完了済みのタスクを表示</span></label>
         </div>
@@ -244,8 +245,6 @@
 
             let tempTasks = [...allTasks];
 
-            // ▼▼▼ 検索アルゴリズム修正 ▼▼▼
-            // 1. まず検索条件で絞り込む
             if (isSearching) {
                 if (searchTerm) {
                     tempTasks = tempTasks.filter(task => task.name && task.name.toLowerCase().includes(searchTerm));
@@ -257,14 +256,10 @@
                     tempTasks = tempTasks.filter(task => task.endDate && task.endDate <= searchEndDate);
                 }
             }
-
-            // 2. 検索中でない場合のみ、「完了済み」の表示/非表示を適用
             if (!isSearching && !showCompleted) {
                 tempTasks = tempTasks.filter(task => task.status !== '完了');
             }
-            // ▲▲▲ 検索アルゴリズム修正 ▲▲▲
 
-            // 担当者フィルターは常に適用
             if (selectedAssignees.length > 0) {
                 tempTasks = tempTasks.filter(task => {
                     const taskAssignees = (task.assignee || '').split(',').map(a => a.trim());
@@ -272,7 +267,6 @@
                 });
             }
             
-            // 並べ替え
             tempTasks.sort((a, b) => {
                 let valA, valB;
                 switch (currentSort.key) {
@@ -332,8 +326,7 @@
             document.getElementById('task-detail-modal').addEventListener('click', e => { if (e.target.id === 'task-detail-modal') closeDetailModal(); });
             document.getElementById('sort-btn-text').textContent = currentSort.text;
 
-            // ▼▼▼ 検索と担当者管理のリスナー (修正) ▼▼▼
-            document.getElementById('search-btn').addEventListener('click', applyFiltersAndRender); // 検索ボタンで実行
+            document.getElementById('search-btn').addEventListener('click', applyFiltersAndRender); 
             document.getElementById('search-reset-btn').addEventListener('click', () => { 
                 document.getElementById('search-task-name').value = ''; 
                 document.getElementById('search-start-date').value = ''; 
@@ -343,7 +336,19 @@
             document.getElementById('manage-assignees-btn').addEventListener('click', () => document.getElementById('assignee-manager-modal').style.display = 'flex');
             document.getElementById('close-assignee-manager-btn').addEventListener('click', () => document.getElementById('assignee-manager-modal').style.display = 'none');
             document.getElementById('add-assignee-form').addEventListener('submit', handleAddAssignee);
-            // ▲▲▲ 検索と担当者管理のリスナー (修正) ▲▲▲
+            
+            // ▼▼▼ 開始日にイベントリスナーを追加 ▼▼▼
+            document.getElementById('startDate').addEventListener('change', (e) => {
+                const startDateInput = e.target;
+                const endDateInput = document.getElementById('endDate');
+                // 終了日の最小選択可能日を開始日に設定
+                endDateInput.min = startDateInput.value;
+                // 終了日が開始日より過去になってしまった場合、開始日と同じに設定
+                if (endDateInput.value < startDateInput.value) {
+                    endDateInput.value = startDateInput.value;
+                }
+            });
+            // ▲▲▲ 開始日にイベントリスナーを追加 ▲▲▲
         }
         async function handleDrop(e) { e.preventDefault(); const taskId = e.dataTransfer.getData('text/plain'); const targetColumn = e.target.closest('.kanban-column'); const taskCard = document.getElementById(`task-${taskId}`); if (targetColumn && taskId && taskCard) { const newStatus = targetColumn.dataset.status; const originalStatus = allTasks.find(t => t.id === taskId)?.status; if (newStatus === '完了' && originalStatus !== '完了' && !showCompleted) { const taskContainer = targetColumn.querySelector('.space-y-4'); taskContainer.appendChild(taskCard); setTimeout(() => taskCard.classList.add('is-hiding'), 50); setTimeout(async () => { await updateTask(taskId, { status: newStatus, isToday: false }); }, 3000); } else { const updateData = { status: newStatus }; if (newStatus === '完了') { updateData.isToday = false; } await updateTask(taskId, updateData); } } }
         async function updateTask(id, data) { if (!tasksCollectionRef) return; data.updatedAt = serverTimestamp(); data.updatedBy = auth.currentUser?.email || 'unknown'; try { await updateDoc(doc(tasksCollectionRef, id), data); } catch (error) { console.error("タスク更新エラー:", error); alert(`タスクの更新に失敗: ${error.message}`); } }
@@ -357,8 +362,10 @@
             const form = document.getElementById('taskForm');
             form.reset();
             document.getElementById('auditInfo').classList.add('hidden');
-            document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
-            document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('startDate').value = today;
+            document.getElementById('endDate').value = today;
+            document.getElementById('endDate').min = today; // 終了日の最小値も今日に設定
 
             const assigneeContainer = document.getElementById('assignee-checkboxes');
             assigneeContainer.innerHTML = '';
@@ -375,6 +382,7 @@
             }
 
             if (task) {
+                // 既存タスク編集
                 document.getElementById('modalTitle').textContent = 'タスクを編集';
                 document.getElementById('taskId').value = task.id;
                 document.getElementById('taskName').value = task.name || '';
@@ -387,6 +395,7 @@
                 document.getElementById('priority').value = task.priority || '';
                 document.getElementById('startDate').value = task.startDate || '';
                 document.getElementById('endDate').value = task.endDate || '';
+                document.getElementById('endDate').min = task.startDate || ''; // 既存タスクの開始日を最小値に
                 document.getElementById('status').value = task.status || '未着手';
                 document.getElementById('isToday').checked = task.isToday || false;
                 document.getElementById('notifyOnDueDate').checked = task.notifyOnDueDate || false;
@@ -395,8 +404,10 @@
                 if(task.updatedAt) auditText += `最終更新: ${task.updatedAt.toLocaleString('ja-JP')} by ${task.updatedBy || '不明'}`;
                 if(auditText) { document.getElementById('auditInfo').innerHTML = auditText; document.getElementById('auditInfo').classList.remove('hidden'); }
             } else {
+                // ▼▼▼ 新規タスク作成 ▼▼▼
                 document.getElementById('modalTitle').textContent = '新しいタスク';
                 document.getElementById('taskId').value = '';
+                document.getElementById('isToday').checked = true; // デフォルトでチェックを入れる
             }
             document.getElementById('taskModal').style.display = 'flex';
         }
