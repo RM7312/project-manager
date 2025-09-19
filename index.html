@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>チーム用タスク管理ツール (v13.4)</title>
+    <title>チーム用タスク管理ツール (v13.5)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -253,13 +253,18 @@
                 if (searchTerm) {
                     tempTasks = tempTasks.filter(task => task.name && task.name.toLowerCase().includes(searchTerm));
                 }
+                
+                // --- 期間検索ロジックを修正 ---
                 if (searchStartDate) {
                     tempTasks = tempTasks.filter(task => task.endDate && task.endDate >= searchStartDate);
                 }
                 if (searchEndDate) {
-                    tempTasks = tempTasks.filter(task => task.endDate && task.endDate <= searchEndDate);
+                    // 新しいロジック：タスクの開始日が検索の終了日以前であればOK
+                    tempTasks = tempTasks.filter(task => task.startDate && task.startDate <= searchEndDate);
                 }
+                // --- 期間検索ロジックを修正 ---
             }
+            
             if (!isSearching && !showCompleted) {
                 tempTasks = tempTasks.filter(task => task.status !== '完了');
             }
@@ -270,15 +275,13 @@
                     return selectedAssignees.some(selected => taskAssignees.includes(selected));
                 });
             }
-            
-            // ▼▼▼ フィルター適用状態をボタンに反映 ▼▼▼
+
             const filterBtn = document.getElementById('filter-btn');
             if (selectedAssignees.length > 0) {
                 filterBtn.classList.add('bg-blue-100', 'text-blue-700', 'font-bold');
             } else {
                 filterBtn.classList.remove('bg-blue-100', 'text-blue-700', 'font-bold');
             }
-            // ▲▲▲ フィルター適用状態をボタンに反映 ▲▲▲
 
             tempTasks.sort((a, b) => {
                 let valA, valB;
